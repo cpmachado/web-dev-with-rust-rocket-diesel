@@ -49,10 +49,10 @@ impl<'r> FromRequest<'r> for BasicAuth {
 
     async fn from_request(request: &'r Request<'_>) -> Outcome<Self, Self::Error> {
         let auth_header = request.headers().get_one("Authorization");
-        if let Some(auth_header) = auth_header {
-            if let Some(auth) = Self::from_authorization_header(auth_header) {
-                return Outcome::Success(auth);
-            }
+        if let Some(auth_header) = auth_header
+            && let Some(auth) = Self::from_authorization_header(auth_header)
+        {
+            return Outcome::Success(auth);
         }
 
         Outcome::Error((Status::Unauthorized, ()))
@@ -89,6 +89,11 @@ fn not_found() -> Value {
     json!("Not found")
 }
 
+#[catch(401)]
+fn unauthorized() -> Value {
+    json!("Unauthorized")
+}
+
 #[rocket::main]
 async fn main() {
     let _ = rocket::build()
@@ -102,7 +107,7 @@ async fn main() {
                 delete_rustacean
             ],
         )
-        .register("/", catchers![not_found])
+        .register("/", catchers![not_found, unauthorized])
         .launch()
         .await;
 }
