@@ -3,38 +3,34 @@ extern crate rocket;
 
 mod auth;
 mod models;
+mod repository;
 mod schema;
 
 use auth::BasicAuth;
 use diesel::prelude::*;
 use models::{NewRustacean, Rustacean};
+use repository::RustaceanRepository;
 use rocket::{http::Status, response::status::Custom};
 use rocket::{
     response::status,
     serde::json::{Json, Value, json},
 };
 use rocket_sync_db_pools::database;
-use schema::rustaceans;
 
 #[database("sqlite")]
 struct DbConn(SqliteConnection);
 
 #[get("/rustaceans")]
 async fn get_rustaceans(_auth: BasicAuth, db: DbConn) -> Result<Value, Custom<Value>> {
-    db.run(|c| {
-        rustaceans::table
-            .order(rustaceans::id.desc())
-            .limit(1000)
-            .load::<Rustacean>(c)
-    })
-    .await
-    .map(|rustaceans| json!(rustaceans))
-    .map_err(|e| {
-        status::Custom(
-            Status::InternalServerError,
-            json!({ "error": e.to_string() }),
-        )
-    })
+    db.run(|c| RustaceanRepository::find_multiple(c, 100))
+        .await
+        .map(|rustaceans| json!(rustaceans))
+        .map_err(|e| {
+            status::Custom(
+                Status::InternalServerError,
+                json!({ "error": e.to_string() }),
+            )
+        })
 }
 
 #[get("/rustaceans/<id>")]
@@ -43,7 +39,7 @@ async fn get_rustacean_by_id(
     _auth: BasicAuth,
     db: DbConn,
 ) -> Result<Value, Custom<Value>> {
-    db.run(move |c| rustaceans::table.find(id).get_result::<Rustacean>(c))
+    db.run(move |c| RustaceanRepository::find(c, id))
         .await
         .map(|r| json!(r))
         .map_err(|e| match e {
@@ -63,20 +59,15 @@ async fn create_rustacean(
     db: DbConn,
     new_rustacean: Json<NewRustacean>,
 ) -> Result<status::Custom<Value>, status::Custom<Value>> {
-    db.run(move |c| {
-        diesel::insert_into(rustaceans::table)
-            .values(new_rustacean.into_inner())
-            .returning(Rustacean::as_returning())
-            .get_result(c)
-    })
-    .await
-    .map(|id| status::Custom(Status::Created, json!(id)))
-    .map_err(|e| {
-        status::Custom(
-            Status::InternalServerError,
-            json!({ "error": e.to_string()}),
-        )
-    })
+    db.run(move |c| RustaceanRepository::create(c, new_rustacean.into_inner()))
+        .await
+        .map(|id| status::Custom(Status::Created, json!(id)))
+        .map_err(|e| {
+            status::Custom(
+                Status::InternalServerError,
+                json!({ "error": e.to_string()}),
+            )
+        })
 }
 
 #[put("/rustaceans/<id>", format = "json", data = "<rustacean>")]
@@ -84,25 +75,20 @@ async fn update_rustacean(
     id: i32,
     _auth: BasicAuth,
     db: DbConn,
-    rustacean: Json<NewRustacean>,
+    rustacean: Json<Rustacean>,
 ) -> Result<Value, status::Custom<Value>> {
-    db.run(move |c| {
-        diesel::update(rustaceans::table.find(id))
-            .set(rustacean.into_inner())
-            .returning(Rustacean::as_returning())
-            .get_result(c)
-    })
-    .await
-    .map(|r| json!(r))
-    .map_err(|e| match e {
-        diesel::result::Error::NotFound => {
-            status::Custom(Status::NotFound, json!({ "error": "not found" }))
-        }
-        e => status::Custom(
-            Status::InternalServerError,
-            json!({ "error": e.to_string()}),
-        ),
-    })
+    db.run(move |c| RustaceanRepository::save(c, id, rustacean.into_inner()))
+        .await
+        .map(|r| json!(r))
+        .map_err(|e| match e {
+            diesel::result::Error::NotFound => {
+                status::Custom(Status::NotFound, json!({ "error": "not found" }))
+            }
+            e => status::Custom(
+                Status::InternalServerError,
+                json!({ "error": e.to_string()}),
+            ),
+        })
 }
 
 #[delete("/rustaceans/<id>")]
@@ -111,22 +97,18 @@ async fn delete_rustacean(
     _auth: BasicAuth,
     db: DbConn,
 ) -> Result<Value, status::Custom<Value>> {
-    db.run(move |c| {
-        diesel::delete(rustaceans::table.find(id))
-            .returning(Rustacean::as_returning())
-            .get_result(c)
-    })
-    .await
-    .map(|r| json!(r))
-    .map_err(|e| match e {
-        diesel::result::Error::NotFound => {
-            status::Custom(Status::NotFound, json!({ "error": "not found" }))
-        }
-        e => status::Custom(
-            Status::InternalServerError,
-            json!({ "error": e.to_string()}),
-        ),
-    })
+    db.run(move |c| RustaceanRepository::delete(c, id))
+        .await
+        .map(|r| json!(r))
+        .map_err(|e| match e {
+            diesel::result::Error::NotFound => {
+                status::Custom(Status::NotFound, json!({ "error": "not found" }))
+            }
+            e => status::Custom(
+                Status::InternalServerError,
+                json!({ "error": e.to_string()}),
+            ),
+        })
 }
 
 #[catch(404)]
