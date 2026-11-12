@@ -2,7 +2,7 @@ use crate::schema::rustaceans;
 use diesel::{AsChangeset, Insertable, Queryable, Selectable};
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Queryable, Selectable)]
+#[derive(Deserialize, Serialize, Queryable, Selectable, AsChangeset)]
 #[diesel(table_name = rustaceans)]
 pub struct Rustacean {
     pub id: i32,
