@@ -9,6 +9,8 @@ use auth::BasicAuth;
 use diesel::prelude::*;
 use models::NewRustacean;
 use models::Rustacean;
+use rocket::http::Status;
+use rocket::response::status::Custom;
 use rocket::serde::json::Json;
 use rocket::{
     response::status,
@@ -21,16 +23,21 @@ use schema::rustaceans;
 struct DbConn(SqliteConnection);
 
 #[get("/rustaceans")]
-async fn get_rustaceans(_auth: BasicAuth, db: DbConn) -> Value {
+async fn get_rustaceans(_auth: BasicAuth, db: DbConn) -> Result<Value, Custom<Value>> {
     db.run(|c| {
-        let rustaceans = rustaceans::table
+        rustaceans::table
             .order(rustaceans::id.desc())
             .limit(1000)
             .load::<Rustacean>(c)
-            .expect("db list error");
-        json!(rustaceans)
     })
     .await
+    .map(|rustaceans| json!(rustaceans))
+    .map_err(|e| {
+        status::Custom(
+            Status::InternalServerError,
+            json!({ "error": e.to_string() }),
+        )
+    })
 }
 
 #[get("/rustaceans/<id>")]
