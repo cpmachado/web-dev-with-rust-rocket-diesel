@@ -7,15 +7,9 @@ mod schema;
 
 use auth::BasicAuth;
 use diesel::prelude::*;
-use models::NewRustacean;
-use models::Rustacean;
-use rocket::http::Status;
-use rocket::response::status::Custom;
-use rocket::serde::json::Json;
-use rocket::{
-    response::status,
-    serde::json::{Value, json},
-};
+use models::{NewRustacean, Rustacean};
+use rocket::{http::Status, response::status::Custom};
+use rocket::{response::status, serde::json::{Json, Value, json}};
 use rocket_sync_db_pools::database;
 use schema::rustaceans;
 
@@ -41,8 +35,23 @@ async fn get_rustaceans(_auth: BasicAuth, db: DbConn) -> Result<Value, Custom<Va
 }
 
 #[get("/rustaceans/<id>")]
-fn get_rustacean(id: i32, _auth: BasicAuth) -> Value {
-    json!({"id": id, "name": "John Doe", "email": "john@doe.com" })
+async fn get_rustacean_by_id(
+    id: i32,
+    _auth: BasicAuth,
+    db: DbConn,
+) -> Result<Value, Custom<Value>> {
+    db.run(move |c| rustaceans::table.find(id).get_result::<Rustacean>(c))
+        .await
+        .map(|r| json!(r))
+        .map_err(|e| match e {
+            diesel::result::Error::NotFound => {
+                status::Custom(Status::NotFound, json!({ "error": "not found" }))
+            }
+            e => status::Custom(
+                Status::InternalServerError,
+                json!({ "error": e.to_string()}),
+            ),
+        })
 }
 
 #[post("/rustaceans", format = "json", data = "<new_rustacean>")]
@@ -93,7 +102,7 @@ async fn main() {
             "/",
             routes![
                 get_rustaceans,
-                get_rustacean,
+                get_rustacean_by_id,
                 create_rustacean,
                 update_rustacean,
                 delete_rustacean
