@@ -36,6 +36,10 @@ impl BasicAuth {
 
         Some(BasicAuth { username, password })
     }
+
+    fn matches(&self, username: &str, password: &str) -> bool {
+        self.username == username && self.password == password
+    }
 }
 
 #[rocket::async_trait]
@@ -46,6 +50,7 @@ impl<'r> FromRequest<'r> for BasicAuth {
         let auth_header = request.headers().get_one("Authorization");
         if let Some(auth_header) = auth_header
             && let Some(auth) = Self::from_authorization_header(auth_header)
+            && auth.matches("Aladdin", "open sesame")
         {
             return Outcome::Success(auth);
         }
