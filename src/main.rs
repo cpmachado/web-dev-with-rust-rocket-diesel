@@ -9,7 +9,10 @@ use auth::BasicAuth;
 use diesel::prelude::*;
 use models::{NewRustacean, Rustacean};
 use rocket::{http::Status, response::status::Custom};
-use rocket::{response::status, serde::json::{Json, Value, json}};
+use rocket::{
+    response::status,
+    serde::json::{Json, Value, json},
+};
 use rocket_sync_db_pools::database;
 use schema::rustaceans;
 
@@ -59,15 +62,20 @@ async fn create_rustacean(
     _auth: BasicAuth,
     db: DbConn,
     new_rustacean: Json<NewRustacean>,
-) -> Value {
-    db.run(|c| {
-        let result = diesel::insert_into(rustaceans::table)
+) -> Result<status::Custom<Value>, status::Custom<Value>> {
+    db.run(move |c| {
+        diesel::insert_into(rustaceans::table)
             .values(new_rustacean.into_inner())
             .execute(c)
-            .expect("DB error when inserting");
-        json!(result)
     })
     .await
+    .map(|r| status::Custom(Status::Created, json!(r)))
+    .map_err(|e| {
+        status::Custom(
+            Status::InternalServerError,
+            json!({ "error": e.to_string()}),
+        )
+    })
 }
 
 #[put("/rustaceans/<id>", format = "json")]
