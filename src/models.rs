@@ -1,8 +1,8 @@
 use crate::schema::rustaceans;
-use diesel::{Insertable, Queryable};
+use diesel::{Insertable, Queryable, Selectable};
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Queryable)]
+#[derive(Serialize, Queryable, Selectable)]
 pub struct Rustacean {
     pub id: i32,
     pub name: String,

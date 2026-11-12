@@ -66,10 +66,11 @@ async fn create_rustacean(
     db.run(move |c| {
         diesel::insert_into(rustaceans::table)
             .values(new_rustacean.into_inner())
-            .execute(c)
+            .returning(Rustacean::as_returning())
+            .get_result(c)
     })
     .await
-    .map(|r| status::Custom(Status::Created, json!(r)))
+    .map(|id| status::Custom(Status::Created, json!(id)))
     .map_err(|e| {
         status::Custom(
             Status::InternalServerError,
