@@ -79,9 +79,30 @@ async fn create_rustacean(
     })
 }
 
-#[put("/rustaceans/<id>", format = "json")]
-fn update_rustacean(id: i32, _auth: BasicAuth) -> Value {
-    json!({"id": id, "name": "John Doe", "email": "john@doe.com" })
+#[put("/rustaceans/<id>", format = "json", data = "<rustacean>")]
+async fn update_rustacean(
+    id: i32,
+    _auth: BasicAuth,
+    db: DbConn,
+    rustacean: Json<NewRustacean>,
+) -> Result<Value, status::Custom<Value>> {
+    db.run(move |c| {
+        diesel::update(rustaceans::table.find(id))
+            .set(rustacean.into_inner())
+            .returning(Rustacean::as_returning())
+            .get_result(c)
+    })
+    .await
+    .map(|r| json!(r))
+    .map_err(|e| match e {
+        diesel::result::Error::NotFound => {
+            status::Custom(Status::NotFound, json!({ "error": "not found" }))
+        }
+        e => status::Custom(
+            Status::InternalServerError,
+            json!({ "error": e.to_string()}),
+        ),
+    })
 }
 
 #[delete("/rustaceans/<_id>")]

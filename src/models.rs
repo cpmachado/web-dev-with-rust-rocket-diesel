@@ -1,8 +1,9 @@
 use crate::schema::rustaceans;
-use diesel::{Insertable, Queryable, Selectable};
+use diesel::{AsChangeset, Insertable, Queryable, Selectable};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Queryable, Selectable)]
+#[diesel(table_name = rustaceans)]
 pub struct Rustacean {
     pub id: i32,
     pub name: String,
@@ -10,7 +11,7 @@ pub struct Rustacean {
     pub created_at: String,
 }
 
-#[derive(Deserialize, Insertable)]
+#[derive(Deserialize, Insertable, AsChangeset)]
 #[diesel(table_name = rustaceans)]
 pub struct NewRustacean {
     pub name: String,
