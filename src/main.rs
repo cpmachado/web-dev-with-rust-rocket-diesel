@@ -105,9 +105,28 @@ async fn update_rustacean(
     })
 }
 
-#[delete("/rustaceans/<_id>")]
-fn delete_rustacean(_id: i32, _auth: BasicAuth) -> status::NoContent {
-    status::NoContent
+#[delete("/rustaceans/<id>")]
+async fn delete_rustacean(
+    id: i32,
+    _auth: BasicAuth,
+    db: DbConn,
+) -> Result<Value, status::Custom<Value>> {
+    db.run(move |c| {
+        diesel::delete(rustaceans::table.find(id))
+            .returning(Rustacean::as_returning())
+            .get_result(c)
+    })
+    .await
+    .map(|r| json!(r))
+    .map_err(|e| match e {
+        diesel::result::Error::NotFound => {
+            status::Custom(Status::NotFound, json!({ "error": "not found" }))
+        }
+        e => status::Custom(
+            Status::InternalServerError,
+            json!({ "error": e.to_string()}),
+        ),
+    })
 }
 
 #[catch(404)]
