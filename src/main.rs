@@ -10,6 +10,8 @@ use auth::BasicAuth;
 use diesel::prelude::*;
 use models::{NewRustacean, Rustacean};
 use repository::RustaceanRepository;
+use rocket::fairing::AdHoc;
+use rocket::{Build, Rocket};
 use rocket::{http::Status, response::status::Custom};
 use rocket::{
     response::status,
@@ -126,6 +128,22 @@ fn unprocessable_entity() -> Value {
     json!("Unprocessable Entity")
 }
 
+async fn run_db_migrations(rocket: Rocket<Build>) -> Rocket<Build> {
+    use diesel_migrations::{EmbeddedMigrations, MigrationHarness, embed_migrations};
+    const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
+
+    DbConn::get_one(&rocket)
+        .await
+        .expect("Unable to retrieve connection")
+        .run(|c| {
+            c.run_pending_migrations(MIGRATIONS)
+                .expect("Migrations failed");
+        })
+        .await;
+
+    rocket
+}
+
 #[rocket::main]
 async fn main() {
     let _ = rocket::build()
@@ -144,6 +162,7 @@ async fn main() {
             catchers![not_found, unauthorized, unprocessable_entity],
         )
         .attach(DbConn::fairing())
+        .attach(AdHoc::on_ignite("diesel-migrations", run_db_migrations))
         .launch()
         .await;
 }
